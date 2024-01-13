@@ -22,12 +22,21 @@ coordinates_nad <- st_coordinates(data_sf) # extract coordinates
 data_sf_wgs <- st_transform(data_sf, crs = 4326)
 
 pal <- colorNumeric(
-  palette = "YlGnBu",
+  palette = "viridis",
   domain = data_sf$acc)
-
 leaflet() |> 
   addTiles() |> 
-  addProviderTiles("Esri.WorldTopoMap", group = "Topo") |> 
-  addProviderTiles("Esri.WorldImagery", group = "ESRI Aerial") |> 
-  addCircleMarkers(data=st_transform(data_sf, crs = 4326), radius = 5, fillColor = ~pal(acc),
-                   stroke = FALSE, fillOpacity = 0.8)
+  addProviderTiles("CartoDB.Positron") |> 
+  addCircleMarkers(data=st_transform(data_sf, crs = 4326), radius = 7,
+                   fillColor = ~pal(acc), stroke = FALSE, fillOpacity = 0.8,
+                   popup = ~str_glue("<b>Number of accidents: </b>{acc}<br/>
+                                       <b>Intersection: </b>{rue_1} & {rue_2}<br/>
+                                       <b>Borough: </b>{borough}"), 
+                   label = ~str_glue("Intersection number: {int_no}"))
+
+# Some nice map palettes c("Stadia.AlidadeSmooth", "CartoDB.Positron")
+
+
+
+
+
