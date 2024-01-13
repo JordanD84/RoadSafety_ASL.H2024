@@ -24,19 +24,15 @@ data_sf_wgs <- st_transform(data_sf, crs = 4326)
 pal <- colorNumeric(
   palette = "viridis",
   domain = data_sf$acc)
-leaflet() |> 
+leaflet(data = data_sf_wgs) |> 
   addTiles() |> 
   addProviderTiles("CartoDB.Positron") |> 
-  addCircleMarkers(data=st_transform(data_sf, crs = 4326), radius = 7,
+  addCircleMarkers(radius = 7,
                    fillColor = ~pal(acc), stroke = FALSE, fillOpacity = 0.8,
                    popup = ~str_glue("<b>Number of accidents: </b>{acc}<br/>
                                        <b>Intersection: </b>{rue_1} & {rue_2}<br/>
                                        <b>Borough: </b>{borough}"), 
-                   label = ~str_glue("Intersection number: {int_no}"))
+                   label = ~str_glue("Intersection number: {int_no}")) %>%
+  addLegend(pal = pal, values = ~acc, position = "bottomright", title = "Accidents")
 
 # Some nice map palettes c("Stadia.AlidadeSmooth", "CartoDB.Positron")
-
-
-
-
-
