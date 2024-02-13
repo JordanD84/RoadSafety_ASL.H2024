@@ -18,6 +18,66 @@ data_sf <-
     crs = 32188
   )
 
+factor_count <- 
+  select(data, where(is.factor)) |> 
+  pivot_longer(everything()) |> 
+  count(name, value) |> 
+  print(n = 30)
+
+compare_graph <- function(var){
+  select(data, acc, all_of(var)) |> 
+    GGally::ggpairs()
+}
+
+# Comparing single covariate models to full
+compare_estimates <- function(df){
+  ind_var <- colnames(df)[colnames(df)!="acc"]
+  nested <- 
+    map(ind_var, \(x) 
+        workflow(spec = linear_reg()) |> 
+          add_variables(
+            outcomes = acc,
+            predictors = all_of(x)
+          ) |> 
+          fit(data = df) |> 
+          tidy() |> 
+          filter(term != "(Intercept)") |> 
+          select(estimate, p.value)
+    ) |> 
+    set_names(ind_var) |> 
+    list_rbind(names_to = "term") |> 
+    rename_with(~str_glue("nested_{.x}"), .cols = !term)
+  
+  full <- 
+    workflow(spec = linear_reg()) |> 
+    add_variables(
+      outcomes = acc,
+      predictors = all_of(ind_var)
+    ) |> 
+    fit(data = df) |> 
+    tidy() |> 
+    filter(term != "(Intercept)") |> 
+    select(term, estimate, p.value) |> 
+    rename_with(~str_glue("full_{.x}"), .cols = !term)
+  
+  compare_df <- left_join(nested, full, by = "term", unmatched = "error", relationship = "one-to-one")
+  return(compare_df)
+}
+test <- compare_estimates(select(data, where(is.double), -x, -y))
+
+test |> 
+  mutate(diff = nested_estimate/full_estimate-1) |> 
+  slice_max(diff, n = 10) |> 
+  select(term, nested_estimate, full_estimate) |> 
+  pivot_longer(!term, names_sep = "_", names_to = c("model_type", "estimate")) |> 
+  ggplot(aes(term, value)) +
+  geom_line(aes(group = term), color = "darkgrey") +
+  geom_point(aes(color = model_type)) +
+  coord_flip() +
+  scale_y_continuous(labels = label_percent())+
+  theme_minimal()
+
+# should probably have standardized coefficients
 
 coordinates_nad <- st_coordinates(data_sf) # extract coordinates
 

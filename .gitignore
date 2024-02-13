@@ -49,4 +49,5 @@ po/*~
 rsconnect/
 
 # Data
-data/
+raw_data/
+processed_data/
