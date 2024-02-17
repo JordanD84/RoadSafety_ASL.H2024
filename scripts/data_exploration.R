@@ -1,10 +1,11 @@
 library(tidyverse)
+library(tidymodels)
 library(arrow)
 library(sf)
 library(leaflet)
 
 # For cleaning final data in parquet format, see data_cleaning.R script
-data <- read_parquet("./data/data_final.parquet")
+data <- read_parquet("./processed_data/data_final.parquet")
 
 not_boroughs <- c("Kirkland", "Hampstead", "Côte-Saint-Luc", "Dorval", "Dollard-des-Ormeaux", "Beaconsfield", "Sud-Ouest", "Westmount", "Mont-Royal")
 
@@ -32,50 +33,55 @@ compare_graph <- function(var){
 # Comparing single covariate models to full
 compare_estimates <- function(df){
   ind_var <- colnames(df)[colnames(df)!="acc"]
+  
+  
   nested <- 
     map(ind_var, \(x) 
-        workflow(spec = linear_reg()) |> 
-          add_variables(
-            outcomes = acc,
-            predictors = all_of(x)
-          ) |> 
+        df |> 
+          recipe() |> 
+          update_role(acc, new_role = "outcome") |> 
+          update_role(all_of(x), new_role = "predictor") |> 
+          #step_normalize(all_predictors()) |>
+          workflow(spec = linear_reg()) |> 
           fit(data = df) |> 
           tidy() |> 
-          filter(term != "(Intercept)") |> 
-          select(estimate, p.value)
+          filter(term != "(Intercept)") 
+        
     ) |> 
     set_names(ind_var) |> 
     list_rbind(names_to = "term") |> 
     rename_with(~str_glue("nested_{.x}"), .cols = !term)
   
   full <- 
+    df |> 
+    recipe() |> 
+    update_role(acc, new_role = "outcome") |> 
+    update_role(all_of(ind_var), new_role = "predictor") |> 
+    #step_normalize(all_predictors()) |>
     workflow(spec = linear_reg()) |> 
-    add_variables(
-      outcomes = acc,
-      predictors = all_of(ind_var)
-    ) |> 
     fit(data = df) |> 
     tidy() |> 
     filter(term != "(Intercept)") |> 
-    select(term, estimate, p.value) |> 
     rename_with(~str_glue("full_{.x}"), .cols = !term)
   
   compare_df <- left_join(nested, full, by = "term", unmatched = "error", relationship = "one-to-one")
   return(compare_df)
 }
-test <- compare_estimates(select(data, where(is.double), -x, -y))
+#test <- compare_estimates(select(data, acc, where(is.double), -x, -y, -date))
+check <- compare_estimates(select(data, acc, starts_with("ln_")))
 
-test |> 
-  mutate(diff = nested_estimate/full_estimate-1) |> 
-  slice_max(diff, n = 10) |> 
-  select(term, nested_estimate, full_estimate) |> 
-  pivot_longer(!term, names_sep = "_", names_to = c("model_type", "estimate")) |> 
-  ggplot(aes(term, value)) +
+check |> 
+  mutate(full = nested_estimate/full_estimate-1,
+         nested= 0) |> 
+  select(term, full, nested) |> 
+  pivot_longer(!term, values_to = "change") |> 
+  ggplot(aes(term, change)) +
   geom_line(aes(group = term), color = "darkgrey") +
-  geom_point(aes(color = model_type)) +
+  geom_point(aes(color = name)) +
   coord_flip() +
   scale_y_continuous(labels = label_percent())+
-  theme_minimal()
+  theme_minimal() +
+  labs(title = "Difference in coefficient estimate", y = "Change (%)", x = "Term", color = "Model")
 
 # should probably have standardized coefficients
 
